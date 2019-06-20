@@ -1,28 +1,20 @@
 import { GameContext } from "wasmtris";
 
 const canvas = document.getElementById("wasmtris-canvas");
-
+const gl = canvas.getContext("webgl", { antialias: false });
 
 const gameContext = GameContext.new("wasmtris-canvas", 16, 30);
 
-// resize the canvas to fill browser window dynamically
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-
-  const maxBlockWidth = window.innerWidth / 16;
-  const maxBlockHeight = canvas.height / 30;
-  //blockSize = Math.min(maxBlockWidth, maxBlockHeight);
+function draw() {
   gameContext.draw();
+  window.requestAnimationFrame(draw);
 }
-window.addEventListener("resize", resizeCanvas, false);
-resizeCanvas();
+
+window.requestAnimationFrame(draw);
 
 // Game mainloop
 setInterval(() => {
   // Update game state // performance.now()
   gameContext.update(performance.now());
-
-  gameContext.draw();
 
 }, 1000.0 / 60.0)

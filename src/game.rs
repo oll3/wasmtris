@@ -1,7 +1,8 @@
+use crate::utils::*;
 use rand;
 
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::collections::HashMap;
 
 use rstris::figure::*;
 use rstris::figure_pos::*;
@@ -9,21 +10,52 @@ use rstris::movement::*;
 use rstris::playfield::*;
 use rstris::pos_dir::*;
 
-use crate::utils::*;
+#[derive(Debug, Clone)]
+struct MoveAndTime {
+    movement: Movement,
+    time: u64,
+}
+impl Ord for MoveAndTime {
+    fn cmp(&self, other: &MoveAndTime) -> Ordering {
+        other.time.cmp(&self.time)
+    }
+}
+impl PartialOrd for MoveAndTime {
+    fn partial_cmp(&self, other: &MoveAndTime) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Eq for MoveAndTime {}
+impl PartialEq for MoveAndTime {
+    fn eq(&self, other: &MoveAndTime) -> bool {
+        self.time == other.time
+    }
+}
 
 struct MoveQueue {
     // Queues of moves to be executed
     queue: BinaryHeap<MoveAndTime>,
 
     // Keep track of when last move was dequeued
-    last_move_time: HashMap<Movement, u64>,
+    last_move_time: [u64; 6],
 }
 
 impl MoveQueue {
     fn new() -> Self {
         MoveQueue {
             queue: BinaryHeap::new(),
-            last_move_time: HashMap::new(),
+            last_move_time: [0; 6],
+        }
+    }
+
+    fn movement_to_index(movement: Movement) -> usize {
+        match movement {
+            Movement::MoveLeft => 0,
+            Movement::MoveRight => 1,
+            Movement::MoveDown => 2,
+            Movement::MoveUp => 3,
+            Movement::RotateCW => 4,
+            Movement::RotateCCW => 5,
         }
     }
 
@@ -38,23 +70,19 @@ impl MoveQueue {
     pub fn pop_next_move(&mut self, ticks: u64) -> Option<MoveAndTime> {
         if let Some(move_and_time) = self.queue.peek() {
             if move_and_time.time <= ticks {
-                self.last_move_time
-                    .insert(move_and_time.movement.clone(), move_and_time.time);
+                self.last_move_time[Self::movement_to_index(move_and_time.movement)] =
+                    move_and_time.time;
                 return self.queue.pop();
             }
         }
         None
     }
 
-    pub fn time_last_move(&self, movement: &Movement) -> u64 {
-        if let Some(time) = self.last_move_time.get(movement) {
-            *time
-        } else {
-            0
-        }
+    pub fn time_last_move(&self, movement: Movement) -> u64 {
+        self.last_move_time[Self::movement_to_index(movement)]
     }
 
-    pub fn time_since_move(&self, ticks: u64, movement: &Movement) -> i64 {
+    pub fn time_since_move(&self, ticks: u64, movement: Movement) -> i64 {
         ticks as i64 - self.time_last_move(movement) as i64
     }
 
@@ -98,9 +126,6 @@ impl Game {
     fn randomize_figure(figures: &[Figure]) -> &Figure {
         let next_figure = (rand::random::<u8>() % figures.len() as u8) as usize;
         &figures[next_figure]
-        //let t: usize = (random() * figures.len() as f32) as usize; //rand::random();
-        /*        let next_figure = t % figures.len();
-        &figures[next_figure]*/
     }
 
     pub fn get_playfield(&self) -> &Playfield {
@@ -129,7 +154,7 @@ impl Game {
 
     fn execute_move(&mut self, movement: Movement) {
         if let Some(mut fig_pos) = self.current_figure.take() {
-            let test_pos = PosDir::apply_move(fig_pos.get_position(), &movement);
+            let test_pos = PosDir::apply_move(fig_pos.get_position(), movement);
             let collision = fig_pos.get_figure().test_collision(&self.pf, &test_pos);
             if collision && movement == Movement::MoveDown {
                 // Figure has landed
@@ -149,7 +174,7 @@ impl Game {
             return;
         }
         if self.current_figure.is_some() {
-            let time_since_down = self.move_queue.time_since_move(ticks, &Movement::MoveDown);
+            let time_since_down = self.move_queue.time_since_move(ticks, Movement::MoveDown);
             if time_since_down >= self.down_step_time as i64 {
                 // Let the figure fall
                 self.add_move(Movement::MoveDown, ticks);
@@ -177,11 +202,6 @@ impl Game {
             } else {
                 self.next_figure = Self::randomize_figure(&self.available_figures).clone();
                 let fig_pos = FigurePos::new(next_figure, pos);
-                console_log!(
-                    "New figure {} (next is {})",
-                    fig_pos.get_figure().get_name(),
-                    self.next_figure.get_name()
-                );
                 self.current_figure = Some(fig_pos);
             }
         }

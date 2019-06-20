@@ -7,8 +7,6 @@ use rstris::pos_dir::*;
 
 use crate::game::Game;
 
-use crate::utils::*;
-
 pub trait ComputerType {
     fn init_eval(&mut self, pf: &Playfield, avail_placings: usize);
     fn eval_placing(&mut self, figure_pos: &FigurePos, pf: &Playfield) -> f32;
@@ -25,8 +23,13 @@ where
 {
     com_type: T,
     moves_per_down_step: f32,
-    path_per_height: Vec<Vec<MoveAndTime>>,
     last_figure: Option<FigurePos>,
+
+    // Some cache variables
+    find_path: FindPath,
+    eval_placing: Vec<EvalPosition>,
+    path: Vec<Movement>,
+    moves_per_level: Vec<(i32, Movement)>,
 }
 
 impl<T> ComputerPlayer<T>
@@ -37,8 +40,11 @@ where
         ComputerPlayer {
             moves_per_down_step,
             com_type,
-            path_per_height: Vec::new(),
+            moves_per_level: Vec::new(),
             last_figure: None,
+            eval_placing: Vec::new(),
+            path: Vec::new(),
+            find_path: FindPath::default(),
         }
     }
 
@@ -48,13 +54,12 @@ where
             None => -1,
         };
         let y = fig_pos.get_position().get_y();
-        if y > last_y && y < self.path_per_height.len() as i32 {
-            let moves = self.path_per_height[y as usize].clone();
-            let time_between_moves = game.get_down_step_time() / (moves.len() + 1) as u64;
-            let mut movement_time = ticks;
-            for move_and_time in &moves {
-                movement_time += time_between_moves;
-                game.add_move(move_and_time.movement.clone(), movement_time);
+        if y > last_y {
+            let mut move_time = 0;
+            while !self.moves_per_level.is_empty() && y == self.moves_per_level[0].0 {
+                let movement = self.moves_per_level.remove(0);
+                game.add_move(movement.1, ticks + move_time);
+                move_time += (game.get_down_step_time() as f32 / self.moves_per_down_step) as u64;
             }
         }
     }
@@ -65,49 +70,46 @@ where
 
         // Evaluate all placings to find the best one
         self.com_type.init_eval(&pf, avail_placing.len());
-        let mut eval_placing: Vec<EvalPosition> = vec![];
+        self.eval_placing.clear();
         for p in &avail_placing {
             let eval_pos = FigurePos::new(fig_pos.get_figure().clone(), *p);
             let eval = self.com_type.eval_placing(&eval_pos, &pf);
             let eval_pos = EvalPosition { pos: *p, eval };
-            eval_placing.push(eval_pos);
+            self.eval_placing.push(eval_pos);
         }
-        eval_placing.sort_by(|a, b| b.eval.partial_cmp(&a.eval).unwrap());
+        self.eval_placing
+            .sort_by(|a, b| b.eval.partial_cmp(&a.eval).unwrap());
 
         // Find a path to first (and best) available placing
-        let mut path = Vec::new();
-        for eval_pos in &eval_placing {
-            path = find_path(
+        self.path.clear();
+        for eval_pos in &self.eval_placing {
+            self.find_path.search(
+                &mut self.path,
                 &pf,
                 &fig_pos.get_figure(),
                 &fig_pos.get_position(),
                 &eval_pos.pos,
                 self.moves_per_down_step,
             );
-            if !path.is_empty() {
+            if !self.path.is_empty() {
                 break;
             }
         }
 
-        self.path_per_height.clear();
-        if !path.is_empty() {
-            path.reverse();
+        self.moves_per_level.clear();
+        if !self.path.is_empty() {
+            self.path.reverse();
 
             // Convert the path from being in exact Movements to
             // describe the sideways/rotational movements per height level
-            self.path_per_height = path_to_per_height(path);
-            console_log!(
-                "Found path for figure {} ({} available placements)",
-                fig_pos.get_figure().get_name(),
-                avail_placing.len()
-            );
+            path_to_moves_per_level(&mut self.moves_per_level, &self.path);
         }
     }
 
     pub fn act_on_game(&mut self, game: &mut Game, ticks: u64) {
-        let current_figure = game.get_current_figure().clone();
-        if self.last_figure != current_figure {
+        if self.last_figure != *game.get_current_figure() {
             // Figure has changed since last call
+            let current_figure = game.get_current_figure().clone();
             if let Some(ref fig_pos) = current_figure {
                 if self.last_figure == None {
                     // Test if new figure
@@ -117,27 +119,19 @@ where
                     self.figure_move_event(game, ticks, fig_pos);
                 }
             }
-            self.last_figure = current_figure.clone();
+            self.last_figure = current_figure;
         }
     }
 }
 
-fn path_to_per_height(path: Vec<(Movement, u64)>) -> Vec<Vec<MoveAndTime>> {
-    let mut moves: Vec<Vec<MoveAndTime>> = Vec::new();
-    let mut current_level: Vec<MoveAndTime> = Vec::new();
-    for &(ref movement, time) in &path {
+fn path_to_moves_per_level(moves: &mut Vec<(i32, Movement)>, path: &[Movement]) {
+    moves.clear();
+    let mut level: i32 = 0;
+    for movement in path {
         if *movement == Movement::MoveDown {
-            moves.push(current_level);
-            current_level = Vec::new();
+            level += 1;
         } else {
-            current_level.push(MoveAndTime {
-                movement: movement.clone(),
-                time,
-            });
+            moves.push((level, *movement));
         }
     }
-    if !current_level.is_empty() {
-        moves.push(current_level);
-    }
-    moves
 }
