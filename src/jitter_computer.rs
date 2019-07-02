@@ -1,5 +1,6 @@
-use rstris::figure_pos::*;
-use rstris::playfield::*;
+use rstris::figure::Figure;
+use rstris::playfield::Playfield;
+use rstris::position::Position;
 
 use crate::computer_player::*;
 
@@ -70,7 +71,6 @@ fn get_pf_avg_height(pf: &Playfield) -> f32 {
 pub struct JitterComputer {
     pre_col_jitter: i32,
     pre_row_jitter: i32,
-    pre_voids: i32,
     pre_avg_height: f32,
     avg_height_factor: f32,
     pre_max_height: u32,
@@ -83,7 +83,6 @@ impl JitterComputer {
             pf: None,
             pre_col_jitter: 0,
             pre_row_jitter: 0,
-            pre_voids: 0,
             pre_avg_height: 0.0,
             avg_height_factor: 0.0,
             pre_max_height: 0,
@@ -96,7 +95,6 @@ impl ComputerType for JitterComputer {
         if self.pf.is_none() {
             self.pf = Some(pf.clone())
         }
-        self.pre_voids = pf.count_voids() as i32;
         self.pre_col_jitter = get_pf_col_jitter(pf) as i32;
         self.pre_row_jitter = get_pf_row_jitter(pf) as i32;
         self.pre_avg_height = get_pf_avg_height(pf);
@@ -105,11 +103,10 @@ impl ComputerType for JitterComputer {
         self.pre_locked_lines = pf.count_locked_lines() as i32;
     }
 
-    fn eval_placing(&mut self, fig_pos: &FigurePos, current_pf: &Playfield) -> f32 {
+    fn eval_placing(&mut self, current_pf: &Playfield, fig: &Figure, pos: Position) -> f32 {
         if let Some(ref mut pf) = self.pf {
             pf.copy(current_pf);
-            fig_pos.place(pf);
-            let avg_height = get_pf_avg_height(&pf);
+            fig.place(pf, pos);
             let mut full_lines = pf.locked_lines();
             full_lines.sort();
 
@@ -121,7 +118,7 @@ impl ComputerType for JitterComputer {
                 -2.0
             } else if full_lines.len() >= 2 {
                 // 2 or 3 lines should be avoided as long as the avarage playfield height is low
-                let factor = 1.0 - (avg_height as f32 / pf.height() as f32);
+                let factor = 1.0 - (self.pre_avg_height as f32 / pf.height() as f32);
                 (4 - full_lines.len()) as f32 * -factor * 3.0
             } else {
                 // No full lines - Don't care
@@ -132,7 +129,7 @@ impl ComputerType for JitterComputer {
                 pf.throw_line(*line);
             }
 
-            let bottom_block = fig_pos.lowest_block() / 2;
+            let bottom_block = (i32::from(fig.lowest_block(pos.dir())) + pos.y()) / 2;
 
             // Measure playfield jitter. Lower jitter is better.
             let col_jitter = get_pf_col_jitter(&pf) as i32 - self.pre_col_jitter;

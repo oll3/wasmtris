@@ -1,19 +1,9 @@
-use core::f32::consts::PI;
-use rstris::block::*;
-use rstris::figure_pos::*;
-use rstris::playfield::*;
-use rstris::position::*;
-
 use js_sys::WebAssembly;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys;
 use web_sys::{WebGlProgram, WebGlRenderingContext, WebGlShader};
 
-use nalgebra::{geometry::*, Matrix3, Matrix4, Vector2, Vector3};
+use nalgebra::Matrix4;
 use nalgebra_glm as glm;
-
-use crate::utils::*;
 
 struct GLBuf {
     buf_ref: web_sys::WebGlBuffer,
@@ -66,6 +56,7 @@ impl GLBuf {
 }
 
 pub struct Draw {
+    last_canvas_size: (i32, i32),
     canvas: web_sys::HtmlCanvasElement,
     gl: WebGlRenderingContext,
     program: web_sys::WebGlProgram,
@@ -157,6 +148,7 @@ impl Draw {
         Draw {
             block_cols,
             block_rows,
+            last_canvas_size: (canvas.client_width(), canvas.client_height()),
             canvas,
             block_buf: GLBuf::new(&gl, &block_vertex),
             color_buf: GLBuf::new(&gl, &blocks),
@@ -166,7 +158,7 @@ impl Draw {
             position_vertex,
             vertex_color,
             dirty: true,
-            blocks: blocks,
+            blocks,
         }
     }
 
@@ -234,7 +226,7 @@ impl Draw {
         if x < self.block_cols && y < self.block_rows {
             for v in 0..6 {
                 let index = (6 * 4 * self.block_cols * y + x * 6 * 4 + v * 4) as usize;
-                self.blocks[index + 0] = color.0;
+                self.blocks[index] = color.0;
                 self.blocks[index + 1] = color.1;
                 self.blocks[index + 2] = color.2;
                 self.blocks[index + 3] = color.3;
@@ -244,6 +236,16 @@ impl Draw {
     }
 
     pub fn draw_blocks(&mut self) {
+        if self.last_canvas_size.0 != self.canvas.client_width()
+            || self.last_canvas_size.1 != self.canvas.client_height()
+        {
+            let block_vertex =
+                Self::generate_blocks(&self.canvas, self.block_cols, self.block_rows);
+            self.block_buf = GLBuf::new(&self.gl, &block_vertex);
+            self.dirty = true;
+            self.last_canvas_size.0 = self.canvas.client_width();
+            self.last_canvas_size.1 = self.canvas.client_height();
+        }
         if self.dirty {
             self.color_buf.update(&self.gl, &self.blocks);
             self.dirty = false;

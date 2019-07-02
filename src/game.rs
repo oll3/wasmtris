@@ -5,10 +5,9 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use rstris::figure::*;
-use rstris::figure_pos::*;
 use rstris::movement::*;
 use rstris::playfield::*;
-use rstris::pos_dir::*;
+use rstris::position::Position;
 
 #[derive(Debug, Clone)]
 struct MoveAndTime {
@@ -102,7 +101,7 @@ pub struct Game {
     next_figure: Figure,
 
     // Current figure being played
-    current_figure: Option<FigurePos>,
+    current_figure: Option<(Figure, Position)>,
 
     game_over: bool,
 
@@ -128,15 +127,15 @@ impl Game {
         &figures[next_figure]
     }
 
-    pub fn get_playfield(&self) -> &Playfield {
+    pub fn playfield(&self) -> &Playfield {
         &self.pf
     }
 
-    pub fn get_current_figure(&self) -> &Option<FigurePos> {
+    pub fn current_figure(&self) -> &Option<(Figure, Position)> {
         &self.current_figure
     }
 
-    pub fn get_next_figure(&self) -> &Figure {
+    pub fn next_figure(&self) -> &Figure {
         &self.next_figure
     }
 
@@ -144,7 +143,7 @@ impl Game {
         self.game_over
     }
 
-    pub fn get_down_step_time(&self) -> u64 {
+    pub fn down_step_time(&self) -> u64 {
         self.down_step_time
     }
 
@@ -153,18 +152,18 @@ impl Game {
     }
 
     fn execute_move(&mut self, movement: Movement) {
-        if let Some(mut fig_pos) = self.current_figure.take() {
-            let test_pos = PosDir::apply_move(fig_pos.get_position(), movement);
-            let collision = fig_pos.get_figure().test_collision(&self.pf, &test_pos);
+        if let Some((fig, mut pos)) = self.current_figure.take() {
+            let test_pos = Position::apply_move(&pos, movement);
+            let collision = fig.test_collision(&self.pf, test_pos);
             if collision && movement == Movement::MoveDown {
                 // Figure has landed
-                fig_pos.place(&mut self.pf);
+                fig.place(&mut self.pf, pos);
             } else {
                 if !collision {
                     // Move was executed
-                    fig_pos.set_position(&test_pos);
+                    pos = test_pos;
                 }
-                self.current_figure = Some(fig_pos);
+                self.current_figure = Some((fig, pos));
             }
         }
     }
@@ -194,15 +193,14 @@ impl Game {
             }
 
             // Place the next figure
-            let next_figure = self.next_figure.clone();
-            let pos = PosDir::new(((self.pf.width() / 2 - 1) as i32, 0, 0));
-            if next_figure.test_collision(&self.pf, &pos) {
+            let new_figure = self.next_figure.clone();
+            let new_pos = Position::new(((self.pf.width() / 2 - 1) as i32, 0, 0));
+            if new_figure.test_collision(&self.pf, new_pos) {
                 console_log!("Game over");
                 self.game_over = true;
             } else {
                 self.next_figure = Self::randomize_figure(&self.available_figures).clone();
-                let fig_pos = FigurePos::new(next_figure, pos);
-                self.current_figure = Some(fig_pos);
+                self.current_figure = Some((new_figure, new_pos));
             }
         }
     }

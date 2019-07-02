@@ -19,7 +19,6 @@ use crate::game::*;
 
 use crate::jitter_computer::*;
 use crate::utils::*;
-use web_sys;
 
 macro_rules! bl {
     ($x:expr) => {
@@ -88,7 +87,6 @@ fn init_figures() -> Vec<Figure> {
 pub struct GameContext {
     game: Game,
     computer_player: ComputerPlayer<JitterComputer>,
-    canvas_id: String,
     draw: draw::Draw,
 }
 
@@ -100,9 +98,8 @@ impl GameContext {
         let pf = Playfield::new("Playfield 1", width, height);
         console_log!("Create game context (draw on: {})", canvas_id);
         GameContext {
-            game: Game::new(pf, figure_list, 0_10),
+            game: Game::new(pf, figure_list, 10),
             computer_player: ComputerPlayer::new(2.0, JitterComputer::new()),
-            canvas_id: canvas_id.to_owned(),
             draw: draw::Draw::new(canvas_id, width, height),
         }
     }
@@ -128,7 +125,7 @@ impl GameContext {
     }
 
     pub fn draw(&mut self) {
-        let pf = self.game.get_playfield();
+        let pf = self.game.playfield();
         for y in 0..pf.height() as i32 {
             for x in 0..pf.width() as i32 {
                 let block = pf.get_block((x, y).into());
@@ -141,14 +138,13 @@ impl GameContext {
                 }
             }
         }
-        match self.game.get_current_figure() {
-            Some(ref fig_pos) => {
-                let pos = fig_pos.get_position();
-                let face = fig_pos.get_face();
+        match self.game.current_figure() {
+            Some((ref fig, pos)) => {
+                let face = fig.face(pos.dir());
                 for (x, y, id) in face {
                     self.draw.set_block(
-                        (i32::from(*x) + pos.x) as u32,
-                        (i32::from(*y) + pos.y) as u32, // TODO: Why -1?
+                        (i32::from(*x) + pos.x()) as u32,
+                        (i32::from(*y) + pos.y()) as u32,
                         Self::block_color(*id),
                     );
                 }

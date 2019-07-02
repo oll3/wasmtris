@@ -1,19 +1,19 @@
-use rstris::figure_pos::*;
+use rstris::figure::Figure;
 use rstris::find_path::*;
 use rstris::find_placement::*;
-use rstris::movement::*;
-use rstris::playfield::*;
-use rstris::pos_dir::*;
+use rstris::movement::Movement;
+use rstris::playfield::Playfield;
+use rstris::position::Position;
 
 use crate::game::Game;
 
 pub trait ComputerType {
     fn init_eval(&mut self, pf: &Playfield, avail_placings: usize);
-    fn eval_placing(&mut self, figure_pos: &FigurePos, pf: &Playfield) -> f32;
+    fn eval_placing(&mut self, pf: &Playfield, fig: &Figure, pos: Position) -> f32;
 }
 
 struct EvalPosition {
-    pos: PosDir,
+    pos: Position,
     eval: f32,
 }
 
@@ -23,9 +23,10 @@ where
 {
     com_type: T,
     moves_per_down_step: f32,
-    last_figure: Option<FigurePos>,
+    last_figure: Option<(Figure, Position)>,
 
     // Some cache variables
+    avail_placings: Vec<Position>,
     find_path: FindPath,
     eval_placing: Vec<EvalPosition>,
     path: Vec<Movement>,
@@ -45,36 +46,40 @@ where
             eval_placing: Vec::new(),
             path: Vec::new(),
             find_path: FindPath::default(),
+            avail_placings: Vec::new(),
         }
     }
 
-    fn figure_move_event(&mut self, game: &mut Game, ticks: u64, fig_pos: &FigurePos) {
+    fn figure_move_event(&mut self, game: &mut Game, ticks: u64, _fig: &Figure, pos: Position) {
         let last_y = match self.last_figure {
-            Some(ref last_fig_pos) => last_fig_pos.get_position().get_y(),
+            Some((_, ref last_fig_pos)) => last_fig_pos.y(),
             None => -1,
         };
-        let y = fig_pos.get_position().get_y();
+        let y = pos.y();
         if y > last_y {
             let mut move_time = 0;
             while !self.moves_per_level.is_empty() && y == self.moves_per_level[0].0 {
                 let movement = self.moves_per_level.remove(0);
                 game.add_move(movement.1, ticks + move_time);
-                move_time += (game.get_down_step_time() as f32 / self.moves_per_down_step) as u64;
+                move_time += (game.down_step_time() as f32 / self.moves_per_down_step) as u64;
             }
         }
     }
 
-    fn new_figure_event(&mut self, _ticks: u64, pf: &Playfield, fig_pos: &FigurePos) {
+    fn new_figure_event(&mut self, _ticks: u64, pf: &Playfield, fig: &Figure, pos: Position) {
         // Find all possible positions where figure can be placed
-        let avail_placing = find_placement_quick(&pf, fig_pos);
+        self.avail_placings.clear();
+        find_placement(&mut self.avail_placings, &pf, fig);
 
         // Evaluate all placings to find the best one
-        self.com_type.init_eval(&pf, avail_placing.len());
+        self.com_type.init_eval(&pf, self.avail_placings.len());
         self.eval_placing.clear();
-        for p in &avail_placing {
-            let eval_pos = FigurePos::new(fig_pos.get_figure().clone(), *p);
-            let eval = self.com_type.eval_placing(&eval_pos, &pf);
-            let eval_pos = EvalPosition { pos: *p, eval };
+        for avail_pos in &self.avail_placings {
+            let eval = self.com_type.eval_placing(&pf, &fig, *avail_pos);
+            let eval_pos = EvalPosition {
+                pos: *avail_pos,
+                eval,
+            };
             self.eval_placing.push(eval_pos);
         }
         self.eval_placing
@@ -86,9 +91,9 @@ where
             self.find_path.search(
                 &mut self.path,
                 &pf,
-                &fig_pos.get_figure(),
-                &fig_pos.get_position(),
-                &eval_pos.pos,
+                fig,
+                pos,
+                eval_pos.pos,
                 self.moves_per_down_step,
             );
             if !self.path.is_empty() {
@@ -107,16 +112,16 @@ where
     }
 
     pub fn act_on_game(&mut self, game: &mut Game, ticks: u64) {
-        if self.last_figure != *game.get_current_figure() {
+        if self.last_figure != *game.current_figure() {
             // Figure has changed since last call
-            let current_figure = game.get_current_figure().clone();
-            if let Some(ref fig_pos) = current_figure {
+            let current_figure = game.current_figure().clone();
+            if let Some((ref fig, pos)) = current_figure {
                 if self.last_figure == None {
                     // Test if new figure
-                    self.new_figure_event(ticks, game.get_playfield(), fig_pos);
-                    self.figure_move_event(game, ticks, fig_pos);
+                    self.new_figure_event(ticks, game.playfield(), fig, pos);
+                    self.figure_move_event(game, ticks, fig, pos);
                 } else {
-                    self.figure_move_event(game, ticks, fig_pos);
+                    self.figure_move_event(game, ticks, fig, pos);
                 }
             }
             self.last_figure = current_figure;
