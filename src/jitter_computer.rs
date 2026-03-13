@@ -118,7 +118,7 @@ impl ComputerType for JitterComputer {
                 -2.0
             } else if full_lines.len() >= 2 {
                 // 2 or 3 lines should be avoided as long as the avarage playfield height is low
-                let factor = 1.0 - (self.pre_avg_height as f32 / pf.height() as f32);
+                let factor = 1.0 - (self.pre_avg_height / pf.height() as f32);
                 (4 - full_lines.len()) as f32 * -factor * 3.0
             } else {
                 // No full lines - Don't care
@@ -132,8 +132,8 @@ impl ComputerType for JitterComputer {
             let bottom_block = (i32::from(fig.lowest_block(pos.dir())) + pos.y()) / 2;
 
             // Measure playfield jitter. Lower jitter is better.
-            let col_jitter = get_pf_col_jitter(&pf) as i32 - self.pre_col_jitter;
-            let row_jitter = get_pf_row_jitter(&pf) as i32 - self.pre_row_jitter;
+            let col_jitter = get_pf_col_jitter(pf) as i32 - self.pre_col_jitter;
+            let row_jitter = get_pf_row_jitter(pf) as i32 - self.pre_row_jitter;
             let jitter_score = -(col_jitter * 3 + row_jitter / 2);
 
             (bottom_block + jitter_score) as f32 + full_lines_score

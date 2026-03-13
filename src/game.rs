@@ -1,5 +1,4 @@
 use crate::utils::*;
-use rand;
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -133,14 +132,6 @@ impl Game {
 
     pub fn current_figure(&self) -> &Option<(Figure, Position)> {
         &self.current_figure
-    }
-
-    pub fn next_figure(&self) -> &Figure {
-        &self.next_figure
-    }
-
-    pub fn game_is_over(&self) -> bool {
-        self.game_over
     }
 
     pub fn down_step_time(&self) -> u64 {

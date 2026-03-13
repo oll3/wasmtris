@@ -32,55 +32,45 @@ macro_rules! bl {
 //
 // Build list of figures
 //
-#[allow(clippy::cognitive_complexity)]
 fn init_figures() -> Vec<Figure> {
-    let mut figure_list: Vec<Figure> = Vec::new();
-    figure_list.push(Figure::new_from_face(
-        "1",
-        &[
-            &[bl!(0), bl!(0), bl!(0)],
-            &[bl!(1), bl!(1), bl!(1)],
-            &[bl!(0), bl!(1), bl!(0)],
-        ],
-    ));
-    figure_list.push(Figure::new_from_face(
-        "2",
-        &[
-            &[bl!(0), bl!(0), bl!(0)],
-            &[bl!(2), bl!(2), bl!(2)],
-            &[bl!(0), bl!(0), bl!(2)],
-        ],
-    ));
-    figure_list.push(Figure::new_from_face(
-        "3",
-        &[
-            &[bl!(0), bl!(0), bl!(3)],
-            &[bl!(3), bl!(3), bl!(3)],
-            &[bl!(0), bl!(0), bl!(0)],
-        ],
-    ));
-    figure_list.push(Figure::new_from_face(
-        "4",
-        &[&[bl!(4), bl!(4)], &[bl!(4), bl!(4)]],
-    ));
-    figure_list.push(Figure::new_from_face(
-        "5",
-        &[&[bl!(0), bl!(5), bl!(5)], &[bl!(5), bl!(5), bl!(0)]],
-    ));
-    figure_list.push(Figure::new_from_face(
-        "6",
-        &[&[bl!(6), bl!(6), bl!(0)], &[bl!(0), bl!(6), bl!(6)]],
-    ));
-    figure_list.push(Figure::new_from_face(
-        "7",
-        &[
-            &[bl!(0), bl!(7), bl!(0)],
-            &[bl!(0), bl!(7), bl!(0)],
-            &[bl!(0), bl!(7), bl!(0)],
-            &[bl!(0), bl!(7), bl!(0)],
-        ],
-    ));
-    figure_list
+    vec![
+        Figure::new_from_face(
+            "1",
+            &[
+                &[bl!(0), bl!(0), bl!(0)],
+                &[bl!(1), bl!(1), bl!(1)],
+                &[bl!(0), bl!(1), bl!(0)],
+            ],
+        ),
+        Figure::new_from_face(
+            "2",
+            &[
+                &[bl!(0), bl!(0), bl!(0)],
+                &[bl!(2), bl!(2), bl!(2)],
+                &[bl!(0), bl!(0), bl!(2)],
+            ],
+        ),
+        Figure::new_from_face(
+            "3",
+            &[
+                &[bl!(0), bl!(0), bl!(3)],
+                &[bl!(3), bl!(3), bl!(3)],
+                &[bl!(0), bl!(0), bl!(0)],
+            ],
+        ),
+        Figure::new_from_face("4", &[&[bl!(4), bl!(4)], &[bl!(4), bl!(4)]]),
+        Figure::new_from_face("5", &[&[bl!(0), bl!(5), bl!(5)], &[bl!(5), bl!(5), bl!(0)]]),
+        Figure::new_from_face("6", &[&[bl!(6), bl!(6), bl!(0)], &[bl!(0), bl!(6), bl!(6)]]),
+        Figure::new_from_face(
+            "7",
+            &[
+                &[bl!(0), bl!(7), bl!(0)],
+                &[bl!(0), bl!(7), bl!(0)],
+                &[bl!(0), bl!(7), bl!(0)],
+                &[bl!(0), bl!(7), bl!(0)],
+            ],
+        ),
+    ]
 }
 
 #[wasm_bindgen]
@@ -138,18 +128,15 @@ impl GameContext {
                 }
             }
         }
-        match self.game.current_figure() {
-            Some((ref fig, pos)) => {
-                let face = fig.face(pos.dir());
-                for (x, y, id) in face {
-                    self.draw.set_block(
-                        (i32::from(*x) + pos.x()) as u32,
-                        (i32::from(*y) + pos.y()) as u32,
-                        Self::block_color(*id),
-                    );
-                }
+        if let Some((ref fig, pos)) = self.game.current_figure() {
+            let face = fig.face(pos.dir());
+            for (x, y, id) in face {
+                self.draw.set_block(
+                    (i32::from(*x) + pos.x()) as u32,
+                    (i32::from(*y) + pos.y()) as u32,
+                    Self::block_color(*id),
+                );
             }
-            None => {}
         }
         self.draw.draw_blocks();
     }

@@ -69,13 +69,13 @@ where
     fn new_figure_event(&mut self, _ticks: u64, pf: &Playfield, fig: &Figure, pos: Position) {
         // Find all possible positions where figure can be placed
         self.avail_placings.clear();
-        find_placement(&mut self.avail_placings, &pf, fig);
+        find_placement(&mut self.avail_placings, pf, fig);
 
         // Evaluate all placings to find the best one
-        self.com_type.init_eval(&pf, self.avail_placings.len());
+        self.com_type.init_eval(pf, self.avail_placings.len());
         self.eval_placing.clear();
         for avail_pos in &self.avail_placings {
-            let eval = self.com_type.eval_placing(&pf, &fig, *avail_pos);
+            let eval = self.com_type.eval_placing(pf, fig, *avail_pos);
             let eval_pos = EvalPosition {
                 pos: *avail_pos,
                 eval,
@@ -90,7 +90,7 @@ where
         for eval_pos in &self.eval_placing {
             self.find_path.search(
                 &mut self.path,
-                &pf,
+                pf,
                 fig,
                 pos,
                 eval_pos.pos,
@@ -116,7 +116,7 @@ where
             // Figure has changed since last call
             let current_figure = game.current_figure().clone();
             if let Some((ref fig, pos)) = current_figure {
-                if self.last_figure == None {
+                if self.last_figure.is_none() {
                     // Test if new figure
                     self.new_figure_event(ticks, game.playfield(), fig, pos);
                     self.figure_move_event(game, ticks, fig, pos);
