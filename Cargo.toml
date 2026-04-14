@@ -21,7 +21,7 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 wee_alloc = { version = "0.4", optional = true }
 
 [dependencies.rand]
-version = "0.10.0"
+version = "0.10.1"
 
 [dependencies.getrandom]
 version = "0.4"
